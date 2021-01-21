@@ -6,7 +6,7 @@
 
     <groupId>com.taochy.elasticsearch</groupId>
     <artifactId>es-rest-client</artifactId>
-    <version>master</version>
+    <version>1.0.0-restful-RELEASE_7.9.0</version>
 
     <repositories>
         <!-- add the elasticsearch repo -->
