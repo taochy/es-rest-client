@@ -12,10 +12,10 @@ import org.elasticsearch.client.RestHighLevelClient;
  * @version: 1.0.0.0
  */
 public class UnifiedGetRequest extends GetRequest {
-  private RestHighLevelClient rhlClient;
+    private RestHighLevelClient rhlClient;
 
-  public UnifiedGetRequest(EsClient client,String indexName, String docId){
-    super(indexName,docId);
-    this.rhlClient = client.getClient();
-  }
+    public UnifiedGetRequest(EsClient client, String indexName, String docId) {
+        super(indexName, docId);
+        this.rhlClient = client.getClient();
+    }
 }

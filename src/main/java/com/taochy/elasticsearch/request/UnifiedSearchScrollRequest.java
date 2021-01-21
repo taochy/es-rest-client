@@ -1,6 +1,7 @@
 package com.taochy.elasticsearch.request;
 
 import java.io.IOException;
+
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -20,35 +21,35 @@ import org.elasticsearch.search.Scroll;
 @Slf4j
 public class UnifiedSearchScrollRequest extends SearchScrollRequest {
 
-  private RestHighLevelClient rhlClient;
-  private SearchResponse originResponse;
+    private RestHighLevelClient rhlClient;
+    private SearchResponse originResponse;
 
-  public UnifiedSearchScrollRequest(RestHighLevelClient rhlClient,String scrollId){
-    super(scrollId);
-    this.rhlClient = rhlClient;
-  }
-
-  public UnifiedSearchScrollRequest(RestHighLevelClient rhlClient,SearchResponse originResponse){
-    super(originResponse.getScrollId());
-    this.originResponse = originResponse;
-    this.rhlClient = rhlClient;
-    this.setScroll(TimeValue.timeValueMinutes(1L));
-  }
-
-  public UnifiedSearchScrollRequest setScroll(TimeValue timeValue){
-    Scroll scroll = new Scroll(timeValue);
-    this.scroll(scroll);
-    return this;
-  }
-
-  public SearchResponse get(){
-    SearchResponse response = null;
-    try {
-      response = rhlClient.scroll(this, RequestOptions.DEFAULT);
-    } catch (IOException e) {
-      log.error(e.getMessage());
+    public UnifiedSearchScrollRequest(RestHighLevelClient rhlClient, String scrollId) {
+        super(scrollId);
+        this.rhlClient = rhlClient;
     }
-    return response;
-  }
+
+    public UnifiedSearchScrollRequest(RestHighLevelClient rhlClient, SearchResponse originResponse) {
+        super(originResponse.getScrollId());
+        this.originResponse = originResponse;
+        this.rhlClient = rhlClient;
+        this.setScroll(TimeValue.timeValueMinutes(1L));
+    }
+
+    public UnifiedSearchScrollRequest setScroll(TimeValue timeValue) {
+        Scroll scroll = new Scroll(timeValue);
+        this.scroll(scroll);
+        return this;
+    }
+
+    public SearchResponse get() {
+        SearchResponse response = null;
+        try {
+            response = rhlClient.scroll(this, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+        return response;
+    }
 
 }
