@@ -6,7 +6,7 @@
 
     <groupId>com.taochy.elasticsearch</groupId>
     <artifactId>es-rest-client</artifactId>
-    <version>1.0.0-restful-RELEASE_7.9.0</version>
+    <version>1.1.0-restful-RELEASE_6.6.2</version>
 
     <repositories>
         <!-- add the elasticsearch repo -->
@@ -23,11 +23,11 @@
     </repositories>
 
     <dependencies>
-        <!-- ElasticSearch 7.9-->
+        <!-- ElasticSearch 6.6.2-->
         <dependency>
             <groupId>org.elasticsearch.client</groupId>
             <artifactId>elasticsearch-rest-high-level-client</artifactId>
-            <version>7.9.0</version>
+            <version>6.6.2</version>
         </dependency>
         <!--slf4j-->
         <dependency>
