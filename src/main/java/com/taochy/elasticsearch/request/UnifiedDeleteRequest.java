@@ -14,10 +14,10 @@ import org.elasticsearch.client.RestHighLevelClient;
  */
 @Slf4j
 public class UnifiedDeleteRequest extends DeleteRequest {
-  private RestHighLevelClient rhlClient;
+    private RestHighLevelClient rhlClient;
 
-  public UnifiedDeleteRequest(EsClient client, String indexName, String docId){
-    super(indexName,docId);
-    this.rhlClient = client.getClient();
-  }
+    public UnifiedDeleteRequest(EsClient client, String indexName, String docId) {
+        super(indexName, docId);
+        this.rhlClient = client.getClient();
+    }
 }

@@ -13,11 +13,11 @@ import org.elasticsearch.client.RestHighLevelClient;
  * @version: 1.0.0.0
  */
 public class UnifiedUpdateRequest extends UpdateRequest {
-  private RestHighLevelClient rhlClient;
-  private SearchResponse response;
+    private RestHighLevelClient rhlClient;
+    private SearchResponse response;
 
-  public UnifiedUpdateRequest(EsClient client,String indexName, String docId){
-    super(indexName,docId);
-    this.rhlClient = client.getClient();
-  }
+    public UnifiedUpdateRequest(EsClient client, String indexName, String docId) {
+        super(indexName, docId);
+        this.rhlClient = client.getClient();
+    }
 }
