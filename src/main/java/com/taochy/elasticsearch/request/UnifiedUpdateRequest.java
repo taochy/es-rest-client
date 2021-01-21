@@ -1,5 +1,6 @@
 package com.taochy.elasticsearch.request;
 
+import com.taochy.elasticsearch.Util.ESPubPara;
 import com.taochy.elasticsearch.client.EsClient;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -13,11 +14,15 @@ import org.elasticsearch.client.RestHighLevelClient;
  * @version: 1.0.0.0
  */
 public class UnifiedUpdateRequest extends UpdateRequest {
-  private RestHighLevelClient rhlClient;
-  private SearchResponse response;
 
-  public UnifiedUpdateRequest(EsClient client,String indexName, String docId){
-    super(indexName,docId);
-    this.rhlClient = client.getClient();
-  }
+    public UnifiedUpdateRequest(EsClient client, String indexName, String docId) {
+        super();
+        this.index(indexName);
+        if (client.isHasType()) {
+            this.type(ESPubPara.ES_TYPE);
+        } else {
+            this.type(ESPubPara.ES_TYPE_DOC);
+        }
+        this.id(docId);
+    }
 }

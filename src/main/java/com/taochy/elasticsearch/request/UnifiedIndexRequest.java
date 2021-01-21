@@ -1,5 +1,6 @@
 package com.taochy.elasticsearch.request;
 
+import com.taochy.elasticsearch.Util.ESPubPara;
 import com.taochy.elasticsearch.client.EsClient;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -12,10 +13,16 @@ import org.elasticsearch.client.RestHighLevelClient;
  * @version: 1.0.0.0
  */
 public class UnifiedIndexRequest extends IndexRequest {
-  private RestHighLevelClient rhlClient;
 
-  public UnifiedIndexRequest(EsClient client,String indexName){
-    super(indexName);
-    this.rhlClient = client.getClient();
-  }
+    private RestHighLevelClient rhlClient;
+
+    public UnifiedIndexRequest(EsClient client, String indexName) {
+        super(indexName);
+        this.rhlClient = client.getClient();
+        if (client.isHasType()) {
+            this.type(ESPubPara.ES_TYPE);
+        } else {
+            this.type(ESPubPara.ES_TYPE_DOC);
+        }
+    }
 }

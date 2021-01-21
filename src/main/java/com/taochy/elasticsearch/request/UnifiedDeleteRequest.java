@@ -1,5 +1,6 @@
 package com.taochy.elasticsearch.request;
 
+import com.taochy.elasticsearch.Util.ESPubPara;
 import com.taochy.elasticsearch.client.EsClient;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -14,10 +15,14 @@ import org.elasticsearch.client.RestHighLevelClient;
  */
 @Slf4j
 public class UnifiedDeleteRequest extends DeleteRequest {
-  private RestHighLevelClient rhlClient;
 
-  public UnifiedDeleteRequest(EsClient client, String indexName, String docId){
-    super(indexName,docId);
-    this.rhlClient = client.getClient();
-  }
+    public UnifiedDeleteRequest(EsClient client, String indexName, String docId) {
+        super(indexName);
+        if (client.isHasType()) {
+            this.type(ESPubPara.ES_TYPE);
+        } else {
+            this.type(ESPubPara.ES_TYPE_DOC);
+        }
+        this.id(docId);
+    }
 }

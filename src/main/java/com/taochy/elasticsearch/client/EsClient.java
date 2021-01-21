@@ -3,704 +3,852 @@ package com.taochy.elasticsearch.client;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.taochy.elasticsearch.request.UnifiedDeleteRequest;
-import com.taochy.elasticsearch.request.UnifiedGetRequest;
-import com.taochy.elasticsearch.request.UnifiedIndexRequest;
-import com.taochy.elasticsearch.request.UnifiedSearchRequest;
-import com.taochy.elasticsearch.request.UnifiedSearchScrollRequest;
-import com.taochy.elasticsearch.request.UnifiedUpdateRequest;
+import com.taochy.elasticsearch.request.*;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.bulk.*;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.*;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-import lombok.extern.slf4j.Slf4j;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortOrder;
-
-/**
- * @author ：taochy
- * @date ：Created in 2020/9/18 2:22 下午
- * @description：es-client main class
- * @modified By：
- * @version: 1.0.0.0
- */
 @Slf4j
 public class EsClient {
 
-  public static boolean ES_STATUS_GREEN = false;
-  private String schema = "http";
-  private BulkProcessor bulkProcessor = null;
-  private String hostNames;
-  private int port;
-  private RestClientBuilder builder;
-  private RestHighLevelClient rhlClient;
-  private RestClient rllClient;
+    public static boolean ES_STATUS_GREEN = false;
+    private String schema = "http";
+    private BulkProcessor bulkProcessor = null;
+    private String hostNames;
+    private int port;
+    private RestClientBuilder builder;
+    private RestHighLevelClient rhlClient;
+    private RestClient rllClient;
+    //es的版本,与后面的业务逻辑强相关，暂时只支持ES5.4以后的版本
+    @Getter
+    private String es_version = "6.0.0";
+    //与上面的es_version属性保持一致，6.0.0默认有type属性
+    @Getter
+    private boolean hasType = true;
 
-  /**
-   * constructor 4 hostNames
-   * @param hostNames
-   */
-  public EsClient(String hostNames) {
-    log.info("hostNames = {}", hostNames);
-    this.hostNames = hostNames;
-    this.port = 9200;
-  }
 
-  /**
-   * constructor 4 hostNames & port
-   * @param port
-   * @param hostNames
-   */
-  public EsClient(String hostNames, int port) {
-    log.info("hostNames = {}, port={}", hostNames, port);
-    this.hostNames = hostNames;
-    this.port = port;
-  }
-
-  /**
-   * build es client.
-   *
-   */
-  public void buildClient() throws Exception {
-    if (rhlClient != null) {
-      rhlClient.close();
-    }
-    if (rllClient != null) {
-      rllClient.close();
+    /**
+     * @Author: zhusw
+     * @Data: 2019/8/22
+     * @Description: test
+     * @param: clusterName
+     * @param: hostNames
+     **/
+    public EsClient(String clusterName, String hostNames) {
+        log.info("hostNames = {}", hostNames);
+        this.hostNames = hostNames;
+        this.port = 9200;
     }
 
-    String[] itTransportHostName = hostNames.split(",");
-    HttpHost[] httpHosts = new HttpHost[itTransportHostName.length];
-    log.info("init restful client");
-    for (int i = 0; i < itTransportHostName.length; i++) {
-      HttpHost httpHost = new HttpHost(itTransportHostName[i], port, schema);
-      httpHosts[i] = httpHost;
-    }
-    builder = RestClient.builder(httpHosts);
-    rhlClient = new RestHighLevelClient(builder);
-    rllClient = rhlClient.getLowLevelClient();
-    log.info("restful client created");
-  }
 
-  /**
-   * build bulk processor.
-   *
-   */
-  public void buildBulkProcessor() throws Exception {
-    if (bulkProcessor != null) {
-      bulkProcessor.close();
+    public EsClient(String clusterName, String hostNames, int port) {
+        log.info("hostNames = {}, port={}", clusterName, hostNames,
+                port);
+        this.hostNames = hostNames;
+        this.port = port;
     }
 
-    BulkProcessor.Listener listener = new BulkProcessor.Listener() {
-      @Override
-      public void beforeBulk(long executionId, BulkRequest request) {
-        log.debug(
-            " executionId " + executionId + " numberOfActions = " + request.numberOfActions());
-      }
+    /**
+     * build es client.
+     *
+     * @status verified 5&6&7
+     */
+    public void buildClient() throws Exception {
+        if (rhlClient != null) {
+            rhlClient.close();
+        }
+        if (rllClient != null) {
+            rllClient.close();
+        }
 
-      @Override
-      public void afterBulk(long executionId, BulkRequest request,
-          BulkResponse response) {
-        if (response.hasFailures()) {
-          BulkItemResponse[] responseItems = response.getItems();
-          for (BulkItemResponse item : responseItems) {
-            if (item.isFailed()) {
-              log.error("bulk failurs index = [{}]===id=[{}]=====message=[{}]", item.getIndex(),
-                  item.getId(), item.getFailureMessage());
+        String[] itTransportHostName = hostNames.split(",");
+        HttpHost[] httpHosts = new HttpHost[itTransportHostName.length];
+        log.info("init restful client");
+        for (int i = 0; i < itTransportHostName.length; i++) {
+            HttpHost httpHost = new HttpHost(itTransportHostName[i], port, schema);
+            httpHosts[i] = httpHost;
+        }
+        builder = RestClient.builder(httpHosts);
+        rhlClient = new RestHighLevelClient(builder);
+        rllClient = rhlClient.getLowLevelClient();
+        log.info("restful client created");
+
+        initEsVersionInfo();
+    }
+
+    /**
+     * build bulk processor.
+     *
+     * @status verified 5&6&7
+     */
+    public void buildBulkProcessor() {
+        if (bulkProcessor != null) {
+            bulkProcessor.close();
+        }
+
+        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+                log.debug(
+                        " executionId " + executionId + " numberOfActions = " + request.numberOfActions());
             }
-          }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request,
+                                  BulkResponse response) {
+                if (response.hasFailures()) {
+                    BulkItemResponse[] responseItems = response.getItems();
+                    for (BulkItemResponse item : responseItems) {
+                        if (item.isFailed()) {
+                            log.error("bulk failurs index = [{}]===id=[{}]=====message=[{}]", item.getIndex(),
+                                    item.getId(), item.getFailureMessage());
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request,
+                                  Throwable failure) {
+                log.info("happen fail = " + failure.getMessage() + " cause = " + failure.getCause());
+            }
+        };
+
+        BulkProcessor.Builder builder = BulkProcessor.builder(
+                (request, bulkListener) ->
+                        rhlClient.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+                listener);
+        builder.setBulkActions(1000);
+        builder.setBulkSize(new ByteSizeValue(5L, ByteSizeUnit.MB));
+        builder.setConcurrentRequests(3);
+        builder.setFlushInterval(TimeValue.timeValueSeconds(10L));
+        builder.setBackoffPolicy(BackoffPolicy
+                .constantBackoff(TimeValue.timeValueMillis(100L), 3));
+
+        bulkProcessor = builder.build();
+    }
+
+    /**
+     * close es client.
+     */
+    public void closeClient() {
+        if (rhlClient != null) {
+            try {
+                rhlClient.close();
+            } catch (IOException e) {
+                log.info("rhlClient close failure {}", e.getMessage());
+            }
         }
-      }
-
-      @Override
-      public void afterBulk(long executionId, BulkRequest request,
-          Throwable failure) {
-        log.info("happen fail = " + failure.getMessage() + " cause = " + failure.getCause());
-      }
-    };
-
-    BulkProcessor.Builder builder = BulkProcessor.builder(
-        (request, bulkListener) ->
-            rhlClient.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
-        listener);
-    builder.setBulkActions(1000);
-    builder.setBulkSize(new ByteSizeValue(5L, ByteSizeUnit.MB));
-    builder.setConcurrentRequests(3);
-    builder.setFlushInterval(TimeValue.timeValueSeconds(10L));
-    builder.setBackoffPolicy(BackoffPolicy
-        .constantBackoff(TimeValue.timeValueMillis(100L), 3));
-
-    bulkProcessor = builder.build();
-  }
-
-  /**
-   * close es client.
-   */
-  public void closeClient() {
-    if (rhlClient != null) {
-      try {
-        rhlClient.close();
-      } catch (IOException e) {
-        log.info("rhlClient close failure {}", e.getMessage());
-      }
-    }
-    if (rllClient != null) {
-      try {
-        rllClient.close();
-      } catch (IOException e) {
-        log.info("rllClient close failure {}", e.getMessage());
-      }
-    }
-  }
-
-  /**
-   * close bulk processor.
-   */
-  public void closeBulkProcessor() {
-    if (bulkProcessor != null) {
-      //先flush再close
-      bulkProcessor.flush();
-      bulkProcessor.close();
-    }
-  }
-
-  /**
-   * delete template.
-   *
-   * @status verified 5&6&7
-   */
-  public void deleteTemplate(String strTemplateName) {
-    try {
-      Request request = new Request(
-          "DELETE",
-          "_template/" + strTemplateName);
-      rllClient.performRequest(request);
-    } catch (IOException e) {
-      log.info("template delete failure {}", e.getMessage());
-    }
-  }
-
-  /**
-   * put template.
-   *
-   * @status verified 5&6&7
-   */
-  public void putTemplate(String templateName, Map<String, Object> templateSource) {
-    try {
-      HttpEntity entity = new NStringEntity(JSON.toJSONString(templateSource),
-          ContentType.APPLICATION_JSON);
-      Request request = new Request(
-          "PUT",
-          "_template/" + templateName);
-      request.setEntity(entity);
-      rllClient.performRequest(request);
-    } catch (IOException e) {
-      log.info("template put failure {}", e.getMessage());
-    }
-  }
-
-  /**
-   * check index or alias exist.
-   *
-   * @status verified 5&6&7
-   */
-  public boolean exists(String strIndex) {
-    try {
-      Request request = new Request(
-          "HEAD",
-          strIndex);
-      Response response = rllClient.performRequest(request);
-      boolean exist = response.getStatusLine().getReasonPhrase().equals("OK");
-      return exist;
-    } catch (IOException e) {
-      log.info("template exist judge failure {}", e.getMessage());
-    }
-    return false;
-  }
-
-
-  //判断index是否存在
-  public String[] washIndex(List<String> listIndexInput) {
-    List<String> listIndexOutput = new ArrayList<>();
-    for (String strIndex : listIndexInput) {
-      try {
-        if (exists(strIndex)) {
-          listIndexOutput.add(strIndex);
+        if (rllClient != null) {
+            try {
+                rllClient.close();
+            } catch (IOException e) {
+                log.info("rllClient close failure {}", e.getMessage());
+            }
         }
-      } catch (Exception e) {
-        log.error("", e);
-      }
     }
-    return listIndexOutput.toArray(new String[]{});
-  }
 
-  /**
-   * 计算时段内的index后缀
-   *
-   * @status verified 5&6&7
-   */
-  public List<String> getIndexs(String strPrefix, Long startTime, Long endTime,
-      String formatter) {
-    List<String> listOut = new ArrayList<>();
-    try {
-      Request request = new Request(
-          "GET",
-          "_cat/indices/" + strPrefix + "*");
-      Response response = rllClient.performRequest(request);
-      HttpEntity entity = response.getEntity();
-      InputStream content = entity.getContent();
-      String line;
-      BufferedReader br = new BufferedReader(new InputStreamReader(content));
-      Set<String> openIndices = new HashSet<>();
-      //line格式参考kibana输出
-      while ((line = br.readLine()) != null) {
-        openIndices.add(line.split(" ")[2]);
-      }
-      if(openIndices.size() > 0){
-        strPrefix = strPrefix.replace("*", "");
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat(formatter);
-        Date startData = new Date(startTime);
-        Date endDate = new Date(endTime);
-        Calendar calendar = new GregorianCalendar();
-        calendar.setTime(startData);
-        while (calendar.getTime().before(endDate)) {
-          String index = strPrefix + simpleDateFormat.format(calendar.getTime());
-          if (openIndices.contains(index)) {
-            listOut.add(index);
-          }
-          calendar.add(Calendar.DATE, 1);
+    /**
+     * close bulk processor.
+     */
+    public void closeBulkProcessor() {
+        if (bulkProcessor != null) {
+            //先flush再close
+            bulkProcessor.flush();
+            bulkProcessor.close();
         }
-        String endIndexName = strPrefix + simpleDateFormat.format(endDate);
-        if (openIndices.contains(endIndexName)) {
-          listOut.add(endIndexName);
+    }
+
+    /**
+     * delete template.
+     *
+     * @status verified 5&6&7
+     */
+    public void deleteTemplate(String strTemplateName) {
+        try {
+            Request request = new Request(
+                    "DELETE",
+                    "_template/" + strTemplateName);
+            rllClient.performRequest(request);
+        } catch (IOException e) {
+            log.info("template delete failure {}", e.getMessage());
         }
-        if (strPrefix.contains("dev")) {
-          listOut.add(strPrefix);
+    }
+
+    /**
+     * put template.
+     *
+     * @status verified 5&6&7
+     */
+    public void putTemplate(String templateName, Map<String, Object> templateSource) {
+        try {
+            HttpEntity entity = new NStringEntity(JSON.toJSONString(templateSource),
+                    ContentType.APPLICATION_JSON);
+            Request request = new Request(
+                    "PUT",
+                    "_template/" + templateName);
+            request.setEntity(entity);
+            rllClient.performRequest(request);
+        } catch (IOException e) {
+            log.info("template put failure {}", e.getMessage());
         }
-      }
-    } catch (IOException e) {
-      log.info(e.getMessage());
     }
-    return listOut;
-  }
 
-
-  /**
-   * delete index.
-   *
-   * @status verified 5&6&7
-   */
-  public void delete(String strIndex) {
-    try {
-      Request request = new Request(
-          "DELETE",
-          strIndex);
-      rllClient.performRequest(request);
-    } catch (IOException e) {
-      log.info("index delete failure {}", e.getMessage());
+    /**
+     * put template.
+     *
+     * @status verified 5&6&7
+     */
+    public boolean templateExists(String templateName) {
+        boolean exists = false;
+        try {
+            Request request = new Request(
+                    "GET",
+                    "_template/" + templateName);
+            Response response = rllClient.performRequest(request);
+            exists = response.getStatusLine().getStatusCode() == 200;
+            //如果template不存在，也会走到异常捕获这里，如果需要特定的日志，则修改异常捕获的日志
+        } catch (IOException e) {
+            log.info("template get failure {}", e.getMessage());
+        }
+        return exists;
     }
-  }
 
-  /**
-   * create index.
-   *
-   * @status verified 5&6&7
-   */
-  public void create(String strIndex, int numShards, int numReplicas) {
-
-    try {
-      Map<String, Object> settings = new MapBuilder<String, Object>()
-          .put("number_of_shards", 1)
-          .put("number_of_replicas", 0)
-          .put("refresh_interval", "10s")
-          .map();
-      XContentBuilder builder = XContentFactory.jsonBuilder()
-          .startObject()
-          .field("settings", JSON.toJSON(settings))
-          .endObject();
-      HttpEntity entity = new NStringEntity(builder.toString(), ContentType.APPLICATION_JSON);
-      Request request = new Request(
-          "PUT",
-          "/" + strIndex);
-      request.setEntity(entity);
-      rllClient.performRequest(request);
-    } catch (IOException e) {
-      log.info(e.getMessage());
+    /**
+     * check index exist.
+     *
+     * @status verified 5&6&7
+     */
+    public boolean exists(String strIndex) {
+        try {
+            Request request = new Request(
+                    "HEAD",
+                    strIndex);
+            Response response = rllClient.performRequest(request);
+            boolean exist = response.getStatusLine().getReasonPhrase().equals("OK");
+            return exist;
+        } catch (IOException e) {
+            log.info("index exist judge failure {}", e.getMessage());
+        }
+        return false;
     }
-  }
 
-  /**
-   * update mapping.
-   *
-   */
-  public void putMapping(String strIndex, String strType, String strMapping) {
-    try {
-      Request request = new Request(
-            "POST",
-            "/" + strIndex + "/_mapping");
-      HttpEntity entity = new NStringEntity(strMapping, ContentType.APPLICATION_JSON);
-      request.setEntity(entity);
-      rllClient
-          .performRequest(request);
-    } catch (IOException e) {
-      log.info(e.getMessage());
+
+    //判断index是否存在
+    public String[] washIndex(List<String> listIndexInput) {
+        List<String> listIndexOutput = new ArrayList<>();
+        for (String strIndex : listIndexInput) {
+            try {
+                if (exists(strIndex)) {
+                    listIndexOutput.add(strIndex);
+                }
+            } catch (Exception e) {
+                log.error("", e);
+            }
+        }
+        return listIndexOutput.toArray(new String[]{});
     }
-  }
 
-  /**
-   * init client and bulk processor.
-   */
-  private void esInit() {
-    try {
-      buildClient();
-      buildBulkProcessor();
-    } catch (Exception e) {
-      log.error("", e);
-    }
-  }
-
-  /**
-   * client keep alive.
-   *
-   */
-  public void keepAlive() {
-    new Thread() {
-      @Override
-      public void run() {
-        Request request = null;
-        while (true) {
-          log.info("===== es keep alive 1");
-          if (rhlClient == null || rllClient == null) {
-            esInit();
-          }
-          try {
-            request = new Request(
-                "GET",
-                "_cat/nodes");
-            Response nodeResponse = rllClient.performRequest(request);
-            HttpEntity nodeEntity = nodeResponse.getEntity();
-            InputStream nodeContent = nodeEntity.getContent();
-            String nodeLine;
-            BufferedReader nodeBr = new BufferedReader(new InputStreamReader(nodeContent));
-            List<String> nodeList = new ArrayList<>();
+    /**
+     * 计算时段内的index名称
+     *
+     * @status verified 5&6&7
+     */
+    public List<String> getIndexs(String strPrefix, Long startTime, Long endTime,
+                                  String formatter) {
+        List<String> listOut = new ArrayList<>();
+        try {
+            Request request = new Request(
+                    "GET",
+                    "_cat/indices/" + strPrefix + "*");
+            Response response = rllClient.performRequest(request);
+            HttpEntity entity = response.getEntity();
+            InputStream content = entity.getContent();
+            String line;
+            BufferedReader br = new BufferedReader(new InputStreamReader(content));
+            Set<String> openIndices = new HashSet<>();
             //line格式参考kibana输出
-            while ((nodeLine = nodeBr.readLine()) != null) {
-              nodeList.add(nodeLine.split(" ")[0]);
+            while ((line = br.readLine()) != null) {
+                openIndices.add(line.split(" ")[2]);
             }
-            if (nodeList.isEmpty()) {
-              System.out.println("No nodes available. Verify ES is running!");
-              ES_STATUS_GREEN = false;
-              log.info("===== es keep alive 2 status: {}", ES_STATUS_GREEN);
-              Thread.sleep(1000 * 10);
-              continue;
-            } else {
-              request = new Request(
-                  "GET",
-                  "_cluster/health");
-              Response healthResponse = rllClient.performRequest(request);
-              HttpEntity healthEntity = healthResponse.getEntity();
-              InputStream healthContent = healthEntity.getContent();
-              String healthLine;
-              String status = null;
-              BufferedReader healthBr = new BufferedReader(new InputStreamReader(healthContent));
-              //line格式参考kibana输出
-              while ((healthLine = healthBr.readLine()) != null) {
-                JSONObject json = JSONObject.parseObject(healthLine);
-                status = json.getString("status");
-              }
-              log.info("===== es keep alive name: {}", status);
-              if ("green".equals(status)) {
-                if (!ES_STATUS_GREEN) {
-                  ES_STATUS_GREEN = true;
-                  log.info("===== es keep alive 3 status: {}", ES_STATUS_GREEN);
+            if (openIndices.size() > 0) {
+                strPrefix = strPrefix.replace("*", "");
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat(formatter);
+                Date startData = new Date(startTime);
+                Date endDate = new Date(endTime);
+                Calendar calendar = new GregorianCalendar();
+                calendar.setTime(startData);
+                while (calendar.getTime().before(endDate)) {
+                    String index = strPrefix + simpleDateFormat.format(calendar.getTime());
+                    if (openIndices.contains(index)) {
+                        listOut.add(index);
+                    }
+                    calendar.add(Calendar.DATE, 1);
                 }
-              } else {
-                log.info("es status:{}", status);
-                if (ES_STATUS_GREEN) {
-                  ES_STATUS_GREEN = false;
-                  log.info("===== es keep alive 4 status: {}", ES_STATUS_GREEN);
+                String endIndexName = strPrefix + simpleDateFormat.format(endDate);
+                if (openIndices.contains(endIndexName)) {
+                    listOut.add(endIndexName);
                 }
-              }
+                if (strPrefix.contains("dev")) {
+                    listOut.add(strPrefix);
+                }
             }
-          } catch (Exception e) {
-            log.error("es status err", e);
-            if (ES_STATUS_GREEN) {
-              ES_STATUS_GREEN = false;
-              log.info("===== es keep alive 5 status: {}", ES_STATUS_GREEN);
-            }
-            esInit();
-          }
-          try {
-            Thread.sleep(1000 * 3);
-          } catch (Exception e) {
-            log.error("", e);
-          }
+        } catch (IOException e) {
+            log.info(e.getMessage());
         }
-      }
-    }.start();
-  }
-
-  /**
-   * 得到查询游标
-   *
-   * @param boolQueryBuilder 条件对象
-   * @param index            要查询的index，此处需要通过时间范围计算出需要查询的index
-   */
-  public SearchResponse getSearchResponse(BoolQueryBuilder boolQueryBuilder, int size,
-      String... index) {
-    SearchResponse searchResponse = null;
-    try {
-      SearchRequest searchRequest = new SearchRequest(index);
-      SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-      searchSourceBuilder.query(boolQueryBuilder);
-      searchSourceBuilder.sort("server_time", SortOrder.DESC);
-      searchSourceBuilder.size(size);
-      searchRequest.source(searchSourceBuilder);
-      searchRequest.scroll(TimeValue.timeValueMinutes(5L));
-      searchRequest.searchType(SearchType.DEFAULT);
-      searchResponse = rhlClient.search(searchRequest, RequestOptions.DEFAULT);
-    } catch (IOException e) {
-      log.info(e.getMessage());
+        return listOut;
     }
-    return searchResponse;
-  }
 
 
-  /**
-   * 通过上一次游标得到下一次的游标
-   *
-   * @param searchResponse 上一次的游标
-   * @return 返回下一次游标
-   */
-  public UnifiedSearchScrollRequest prepareSearchScroll(SearchResponse searchResponse) {
-    return new UnifiedSearchScrollRequest(rhlClient,searchResponse);
-  }
-
-  /**
-   * 通过上一次游标得到下一次的游标
-   *
-   * @param scrollId 上一次的游标Id
-   * @return 返回下一次游标
-   */
-  public UnifiedSearchScrollRequest prepareSearchScroll(String scrollId) {
-    return new UnifiedSearchScrollRequest(rhlClient,scrollId);
-  }
-
-  /**
-   * 通过上一次游标得到下一次的游标
-   *
-   * @param searchResponse 上一次的游标
-   * @return 返回下一次游标
-   */
-  public ClearScrollResponse prepareClearScroll(SearchResponse searchResponse) {
-    ClearScrollResponse response = null;
-    ClearScrollRequest request = new ClearScrollRequest();
-    request.addScrollId(searchResponse.getScrollId());
-    try {
-      response = rhlClient.clearScroll(request, RequestOptions.DEFAULT);
-    } catch (IOException e) {
-      log.error(e.getMessage());
+    /**
+     * delete index.
+     *
+     * @status verified 5&6&7
+     */
+    public void delete(String strIndex) {
+        try {
+            Request request = new Request(
+                    "DELETE",
+                    strIndex);
+            rllClient.performRequest(request);
+        } catch (IOException e) {
+            log.info("index delete failure {}", e.getMessage());
+        }
     }
-    return response;
-  }
 
-  public String getTransportHostNames() {
-    return hostNames;
-  }
+    /**
+     * create index.
+     *
+     * @status verified 5&6&7
+     */
+    public void create(String strIndex, int numShards, int numReplicas) {
 
-  public void setTransportHostNames(String hostNames) {
-    this.hostNames = hostNames;
-  }
+        try {
+            Map<String, Object> settings = new MapBuilder<String, Object>()
+                    .put("number_of_shards", numShards)
+                    .put("number_of_replicas", numReplicas)
+                    .put("refresh_interval", "10s")
+                    .map();
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.fluentPut("settings", JSON.toJSON(settings));
+            HttpEntity entity = new NStringEntity(jsonObject.toJSONString(),
+                    ContentType.APPLICATION_JSON);
 
-  public RestHighLevelClient getClient() {
-    return rhlClient;
-  }
+            Request request = new Request(
+                    "PUT",
+                    "/" + strIndex);
+            request.setEntity(entity);
+            rllClient.performRequest(request);
+        } catch (IOException e) {
+            log.info(e.getMessage());
+        }
+    }
 
-  public RestClient getRllClient() {
-    return rllClient;
-  }
+    /**
+     * update mapping.
+     *
+     * @status verified 5&6&7
+     */
+    public void putMapping(String strIndex, String strType, String strMapping) {
+        try {
+            Request request = null;
+            if (hasType) {
+                request = new Request(
+                        "POST",
+                        "/" + strIndex + "/" + strType + "/_mapping");
+            } else {
+                request = new Request(
+                        "POST",
+                        "/" + strIndex + "/_mapping");
+            }
+            HttpEntity entity = new NStringEntity(strMapping, ContentType.APPLICATION_JSON);
+            request.setEntity(entity);
+            rllClient
+                    .performRequest(request);
+        } catch (IOException e) {
+            log.info(e.getMessage());
+        }
+    }
 
-  public BulkProcessor getBulkProcessor() {
-    return bulkProcessor;
-  }
+    /**
+     * init client and bulk processor.
+     */
+    private void esInit() {
+        log.info("es client err, recontent");
+        try {
+            buildClient();
+            buildBulkProcessor();
+        } catch (Exception e) {
+            log.error("", e);
+        }
+    }
 
-  /**
-   * alias 4 index
-   *
-   * @status verified 5&6&7
-   */
-  public void aliasIndex(String oldIndexName, String indexName) {
-    if (!exists(indexName) && exists(oldIndexName)) {
-      try {
-        //拼接alias的restful命令体
-        JSONArray array = new JSONArray();
-        JSONObject actionJson = new JSONObject();
-        JSONObject aliasJson = new JSONObject();
-        aliasJson.fluentPut("index", oldIndexName);
-        aliasJson.fluentPut("alias", indexName);
-        //此处不能使用toJsonString方法，否则拼接的命令字符串会报错
-        actionJson.fluentPut("add", aliasJson);
-        array.add(actionJson);
+    /**
+     * client keep alive.
+     *
+     * @status verified 5&6&7
+     */
+    public void keepAlive() {
+        new Thread() {
+            @Override
+            public void run() {
+                Request request = null;
+                while (true) {
+                    log.info("===== es keep alive 1");
+                    if (rhlClient == null || rllClient == null) {
+                        esInit();
+                    }
+                    try {
+                        request = new Request(
+                                "GET",
+                                "_cat/nodes");
+                        Response nodeResponse = rllClient.performRequest(request);
+                        HttpEntity nodeEntity = nodeResponse.getEntity();
+                        InputStream nodeContent = nodeEntity.getContent();
+                        String nodeLine;
+                        BufferedReader nodeBr = new BufferedReader(new InputStreamReader(nodeContent));
+                        List<String> nodeList = new ArrayList<>();
+                        //line格式参考kibana输出
+                        while ((nodeLine = nodeBr.readLine()) != null) {
+                            nodeList.add(nodeLine.split(" ")[0]);
+                        }
+                        if (nodeList.isEmpty()) {
+                            System.out.println("No nodes available. Verify ES is running!");
+                            ES_STATUS_GREEN = false;
+                            log.info("===== es keep alive 2 status: {}", ES_STATUS_GREEN);
+                            Thread.sleep(1000 * 10);
+                            continue;
+                        } else {
+                            request = new Request(
+                                    "GET",
+                                    "_cluster/health");
+                            Response healthResponse = rllClient.performRequest(request);
+                            HttpEntity healthEntity = healthResponse.getEntity();
+                            InputStream healthContent = healthEntity.getContent();
+                            String healthLine;
+                            String status = null;
+                            BufferedReader healthBr = new BufferedReader(new InputStreamReader(healthContent));
+                            //line格式参考kibana输出
+                            while ((healthLine = healthBr.readLine()) != null) {
+                                JSONObject json = JSONObject.parseObject(healthLine);
+                                status = json.getString("status");
+                            }
+                            log.info("===== es keep alive name: {}", status);
+                            if ("green".equals(status)) {
+                                if (!ES_STATUS_GREEN) {
+                                    ES_STATUS_GREEN = true;
+                                    log.info("===== es keep alive 3 status: {}", ES_STATUS_GREEN);
+                                }
+                            } else {
+                                log.info("es status:{}", status);
+                                if (ES_STATUS_GREEN) {
+                                    ES_STATUS_GREEN = false;
+                                    log.info("===== es keep alive 4 status: {}", ES_STATUS_GREEN);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("es status err", e);
+                        if (ES_STATUS_GREEN) {
+                            ES_STATUS_GREEN = false;
+                            log.info("===== es keep alive 5 status: {}", ES_STATUS_GREEN);
+                        }
+                        esInit();
+                    }
+                    try {
+                        Thread.sleep(1000 * 3);
+                    } catch (Exception e) {
+                        log.error("", e);
+                    }
+                }
+            }
+        }.start();
+    }
 
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
+    /**
+     * 得到查询游标
+     *
+     * @param boolQueryBuilder 条件对象
+     * @param index            要查询的index，此处需要通过时间范围计算出需要查询的index
+     */
+    public SearchResponse getSearchResponse(BoolQueryBuilder boolQueryBuilder, int size,
+                                            String... index) {
+        SearchResponse searchResponse = null;
+        try {
+            SearchRequest searchRequest = new SearchRequest(index);
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(boolQueryBuilder);
+            searchSourceBuilder.sort("server_time", SortOrder.DESC);
+            searchSourceBuilder.size(size);
+            searchRequest.source(searchSourceBuilder);
+            searchRequest.scroll(TimeValue.timeValueMinutes(5L));
+            searchRequest.searchType(SearchType.DEFAULT);
+            searchResponse = rhlClient.search(searchRequest, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            log.info(e.getMessage());
+        }
+        return searchResponse;
+    }
+
+
+    /**
+     * 通过上一次游标得到下一次的游标
+     *
+     * @param searchResponse 上一次的游标
+     * @return 返回下一次游标
+     */
+    public UnifiedSearchScrollRequest prepareSearchScroll(SearchResponse searchResponse) {
+        return new UnifiedSearchScrollRequest(rhlClient, searchResponse);
+    }
+
+    /**
+     * 通过上一次游标得到下一次的游标
+     *
+     * @param scrollId 上一次的游标Id
+     * @return 返回下一次游标
+     */
+    public UnifiedSearchScrollRequest prepareSearchScroll(String scrollId) {
+        return new UnifiedSearchScrollRequest(rhlClient, scrollId);
+    }
+
+    /**
+     * 通过上一次游标得到下一次的游标
+     *
+     * @param searchResponse 上一次的游标
+     * @return 返回下一次游标
+     */
+    public ClearScrollResponse prepareClearScroll(SearchResponse searchResponse) {
+        ClearScrollResponse response = null;
+        ClearScrollRequest request = new ClearScrollRequest();
+        request.addScrollId(searchResponse.getScrollId());
+        try {
+            response = rhlClient.clearScroll(request, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+        return response;
+    }
+
+    public String getTransportHostNames() {
+        return hostNames;
+    }
+
+    public void setTransportHostNames(String hostNames) {
+        this.hostNames = hostNames;
+    }
+
+    public RestHighLevelClient getClient() {
+        return rhlClient;
+    }
+
+    public RestClient getRllClient() {
+        return rllClient;
+    }
+
+    public BulkProcessor getBulkProcessor() {
+        return bulkProcessor;
+    }
+
+    /**
+     * alias 4 index
+     *
+     * @status verified 5&6&7
+     */
+    public boolean aliasIndex(String oldIndexName, String aliasName) {
+        boolean result = false;
+//    if (!existsAlias(aliasName) && exists(oldIndexName)) {
+        try {
+            //拼接alias的restful命令体
+            JSONArray array = new JSONArray();
+            JSONObject actionJson = new JSONObject();
+            JSONObject aliasJson = new JSONObject();
+            aliasJson.fluentPut("index", oldIndexName);
+            aliasJson.fluentPut("alias", aliasName);
             //此处不能使用toJsonString方法，否则拼接的命令字符串会报错
-            .field("actions", array)
-            .endObject();
-        HttpEntity entity = new NStringEntity(builder.toString(), ContentType.APPLICATION_JSON);
-        Request request = new Request(
-            "POST",
-            "_aliases");
-        request.setEntity(entity);
-        rllClient.performRequest(request);
-      } catch (IOException e) {
-        log.info(e.getMessage());
-      }
+            actionJson.fluentPut("add", aliasJson);
+            array.add(actionJson);
+
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.fluentPut("actions", array);
+
+            HttpEntity entity = new NStringEntity(jsonObject.toJSONString(),
+                    ContentType.APPLICATION_JSON);
+            Request request = new Request(
+                    "POST",
+                    "_aliases");
+            request.setEntity(entity);
+            Response response = rllClient.performRequest(request);
+            HttpEntity resultEntity = response.getEntity();
+            InputStream resultContent = resultEntity.getContent();
+            String resultLine;
+            BufferedReader resultBr = new BufferedReader(new InputStreamReader(resultContent));
+            //line格式参考kibana输出
+            while ((resultLine = resultBr.readLine()) != null) {
+                JSONObject json = JSONObject.parseObject(resultLine);
+                result = json.getBooleanValue("acknowledged");
+            }
+        } catch (IOException e) {
+            log.info(e.getMessage());
+        }
+//    }
+        return result;
     }
-  }
 
-  /**
-   * 兼容之前java代码而抽象的search方法
-   * @param indexName
-   * @return
-   */
-  public UnifiedSearchRequest prepareSearch(String... indexName){
-    return new UnifiedSearchRequest(this,indexName);
-  }
-
-  /**
-   * 写入数据
-   *
-   */
-  public void prepareInsert(String indexName, String docId, Map<String, Object> jsonMap) {
-    try {
-      UnifiedIndexRequest indexRequest = new UnifiedIndexRequest(this,indexName);
-      indexRequest.id(docId).source(jsonMap);
-      indexRequest.timeout(TimeValue.timeValueSeconds(1));
-      indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-      indexRequest.opType(DocWriteRequest.OpType.CREATE);
-      IndexResponse indexResponse = rhlClient.index(indexRequest,RequestOptions.DEFAULT);
-      System.out.println(indexResponse.getResult());
-      System.out.println(indexResponse.getShardInfo().getTotal());
-      System.out.println(indexResponse.getShardInfo().getFailed());
-    } catch (IOException e) {
-      log.error(e.getMessage());
+    /**
+     * 初始化ES版本相关的信息和属性
+     *
+     * @status verified 5&6&7
+     */
+    private void initEsVersionInfo() {
+        try {
+            Request request = new Request(
+                    "GET",
+                    "/");
+            Response versionResponse = rllClient.performRequest(request);
+            HttpEntity versionEntity = versionResponse.getEntity();
+            InputStream versionContent = versionEntity.getContent();
+            String versionLine;
+            BufferedReader versionBr = new BufferedReader(new InputStreamReader(versionContent));
+            //line格式参考kibana输出
+            while ((versionLine = versionBr.readLine()) != null) {
+                //根据kibana执行结果逐行遍历查看number，然后消除空格,"以及,的干扰
+                if (versionLine.contains("number")) {
+                    es_version = versionLine.split(":")[1].replace("\"", "").replace(",", "").trim();
+                    break;
+                }
+            }
+            //根据es版本获取是否还有type属性,此处只考虑5以上的ES版本,5和6有type，其余版本没有type属性
+            if (!es_version.startsWith("5") && !es_version.startsWith("6")) {
+                hasType = false;
+            }
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
     }
-  }
 
-  /**
-   * 更新数据
-   *
-   */
-  public void prepareUpdate(String indexName, String docId, Map<String, Object> jsonMap) {
-    try {
-      UnifiedUpdateRequest updateRequest = new UnifiedUpdateRequest(this,indexName, docId);
-      updateRequest.doc(jsonMap);
-      updateRequest.timeout(TimeValue.timeValueSeconds(1));
-      updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-      UpdateResponse updateResponse = rhlClient.update(updateRequest,RequestOptions.DEFAULT);
-      System.out.println(updateResponse.getResult());
-      System.out.println(updateResponse.getShardInfo().getTotal());
-      System.out.println(updateResponse.getShardInfo().getFailed());
-    } catch (IOException e) {
-      log.error(e.getMessage());
+    /**
+     * 获取指定index的shard平均大小
+     *
+     * @param index
+     * @return
+     */
+    public long shardSize(String index) {
+        long shardAvgSize = 0L;
+        List<String[]> openIndices = getOpenIndices(index);
+        for (String[] dataList : openIndices) {
+            if (dataList[2].equals(index)) {
+                Double size =
+                        Double.parseDouble(dataList[8].substring(0, dataList[8].length() - 2)) * 1024;
+                long indexSize = size.longValue();
+                shardAvgSize = indexSize / Integer.parseInt(dataList[4]);
+                break;
+            }
+        }
+        return shardAvgSize;
     }
-  }
 
-  /**
-   * 删除数据
-   *
-   */
-  public DeleteResponse prepareDelete(String indexName, String docId) {
-    DeleteResponse deleteResponse = null;
-    try {
-      UnifiedDeleteRequest deleteRequest = new UnifiedDeleteRequest(this,indexName,docId);
-      deleteRequest.timeout(TimeValue.timeValueSeconds(1));
-      deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-      deleteResponse = rhlClient.delete(deleteRequest,RequestOptions.DEFAULT);
-    } catch (IOException e) {
-      log.error(e.getMessage());
+    /**
+     * 获取es集群中所有前缀名称符合的open状态的index信息
+     *
+     * @return
+     */
+    public List<String[]> getOpenIndices(String indexPrefix) {
+        List<String[]> openIndices = new ArrayList<>();
+        try {
+            Request request = new Request(
+                    "GET",
+                    "_cat/indices");
+            Response indicesResponse = rllClient.performRequest(request);
+            HttpEntity indicesEntity = indicesResponse.getEntity();
+            InputStream indicesContent = indicesEntity.getContent();
+            String indicesLine;
+            BufferedReader indicesBr = new BufferedReader(new InputStreamReader(indicesContent));
+            //存储Kibana去除空格后的数据，长度为10
+            List<String> dataList = new ArrayList<>(10);
+            //line格式参考kibana输出
+            while ((indicesLine = indicesBr.readLine()) != null) {
+                String[] indicesInfo = indicesLine.split(" ");
+                //由于kibana返回值空格数不确定，去除空格后再进行判断处理
+                for (String s : indicesInfo) {
+                    if (StringUtils.isNotEmpty(s)) {
+                        dataList.add(s);
+                    }
+                }
+                //排除掉cLose掉的index，用前缀名称过滤，只留下名称符合的open的index
+                if (dataList.size() == 10 && dataList.get(2).contains(indexPrefix)) {
+                    openIndices.add(dataList.toArray(new String[dataList.size()]));
+                }
+                dataList.clear();
+            }
+        } catch (IOException e) {
+            log.error("get open index error : {}" + e.getMessage());
+        }
+        return openIndices;
     }
-    return deleteResponse;
-  }
 
-  /**
-   * 获取数据
-   *
-   */
-  public GetResponse prepareGet(String indexName, String type, String docId) {
-    GetResponse getResponse = null;
-    try {
-      UnifiedGetRequest getRequest = new UnifiedGetRequest(this, indexName, docId);
-      getResponse = rhlClient.get(getRequest, RequestOptions.DEFAULT);
-    } catch (IOException e) {
-      log.error(e.getMessage());
+    /**
+     * 判断alias是否存在
+     *
+     * @param alias
+     * @return
+     */
+    public boolean existsAlias(String... alias) {
+        GetAliasesRequest request = new GetAliasesRequest(alias);
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        boolean exists = false;
+        try {
+            exists = rhlClient.indices().existsAlias(request, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            log.error("alias exit judge failed : [{}]", e.getMessage());
+        }
+        return exists;
     }
-    return getResponse;
-  }
 
-  public static void main(String[] args) throws Exception {
-    EsClient esClient = new EsClient("vm-134");
-    esClient.buildClient();
-    esClient.buildBulkProcessor();
-    System.out.println("start!");
-//    IndexRequest one = new IndexRequest("test").type("test_type").id("1")
+    /**
+     * 兼容之前java代码而抽象的search方法
+     *
+     * @param indexName
+     * @return
+     */
+    public UnifiedSearchRequest prepareSearch(String... indexName) {
+        return new UnifiedSearchRequest(this, indexName);
+    }
+
+    /**
+     * 写入数据，indexRequest相关的方法可以根据需求在UnifiedIndexRequest重新封装
+     *
+     * @status verified 5&6&7
+     */
+    public void prepareInsert(String indexName, String docId, Map<String, Object> jsonMap) {
+        try {
+            UnifiedIndexRequest indexRequest = new UnifiedIndexRequest(this, indexName);
+            indexRequest.id(docId).source(jsonMap);
+            indexRequest.timeout(TimeValue.timeValueSeconds(1));
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+//      indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            IndexResponse indexResponse = rhlClient.index(indexRequest, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            log.error("document insert error : {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 更新数据，updateRequest相关的方法可以根据需求在UnifiedUpdateRequest重新封装
+     *
+     * @status verified 5&6&7
+     */
+    public void prepareUpdate(String indexName, String docId, Map<String, Object> jsonMap) {
+        try {
+            UnifiedUpdateRequest updateRequest = new UnifiedUpdateRequest(this, indexName, docId);
+            updateRequest.doc(jsonMap);
+            updateRequest.timeout(TimeValue.timeValueSeconds(1));
+            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+            UpdateResponse updateResponse = rhlClient.update(updateRequest, RequestOptions.DEFAULT);
+            System.out.println(updateResponse.getResult());
+            System.out.println(updateResponse.getShardInfo().getTotal());
+            System.out.println(updateResponse.getShardInfo().getFailed());
+        } catch (IOException e) {
+            log.error("document update error : {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 删除数据，deleteRequest相关的方法可以根据需求在UnifiedDeleteRequest重新封装
+     *
+     * @status verified 5&6&7
+     */
+    public DeleteResponse prepareDelete(String indexName, String docId) {
+        DeleteResponse deleteResponse = null;
+        try {
+            UnifiedDeleteRequest deleteRequest = new UnifiedDeleteRequest(this, indexName, docId);
+            deleteRequest.timeout(TimeValue.timeValueSeconds(1));
+            deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            deleteResponse = rhlClient.delete(deleteRequest, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            log.error("document delete error : {}", e.getMessage());
+        }
+        return deleteResponse;
+    }
+
+    /**
+     * 获取数据，getRequest相关的方法可以根据需求在UnifiedGetRequest重新封装
+     *
+     * @status verified 5&6&7
+     */
+    public GetResponse prepareGet(String indexName, String docId) {
+        GetResponse getResponse = null;
+        try {
+            UnifiedGetRequest getRequest = new UnifiedGetRequest(this, indexName, docId);
+            getResponse = rhlClient.get(getRequest, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            log.error("document get error : {}", e.getMessage());
+        }
+        return getResponse;
+    }
+
+    public static void main(String[] args) throws Exception {
+        EsClient esClient = new EsClient(null, "vm-100");
+        esClient.buildClient();
+        esClient.buildBulkProcessor();
+        System.out.println("start!");
+//    Map<String, Object> jsonMap = new HashMap<>();
+//    jsonMap.put("agent_id", "111");
+//    esClient.prepareUpdate("bb_i_sdkinfo_stat","12345",jsonMap);
+//    esClient.prepareInsert("bb_i_sdkinfo_stat","12345",jsonMap);
+//    DeleteResponse bb_i_sdkinfo_stat = esClient.prepareDelete("bb_i_sdkinfo_stat", "23456");
+//    System.out.println(bb_i_sdkinfo_stat.getShardInfo().getTotal() == bb_i_sdkinfo_stat.getShardInfo().getSuccessful());
+//    SearchResponse response = esClient.prepareSearch("bb_i_sdkinfo_stat")
+//        .execute().actionGet();
+//    System.out.println(response.getHits().getTotalHits());
+//    GetResponse documentFields = esClient.prepareGet("bb_i_app_20201021", "6045-00000000-0000-0000-0000-0000000006045|10000000000000011111000000000000018|1|com.demo.test");
+//    String sourceAsString = documentFields.getSourceAsString();
+//    System.out.println(sourceAsString);
+//    List<String[]> openIndices = esClient.getOpenIndices();
+//    System.out.println(openIndices.size());
+//    for (String[] ss : openIndices) {
+//      System.out.println(ss[2]);
+//    }
+//    IndexRequest one = new UnifiedIndexRequest(esClient,"bb_i_sdkinfo_stat").id("123")
 //        .source(XContentType.JSON, "agent_id",
-//            "aaa");
-//    IndexRequest two = new IndexRequest("test").type("test_type").id("2")
-//        .source(XContentType.JSON, "agent_id",
-//            "bbb");
-//    IndexRequest three = new IndexRequest("test").type("test_type").id("3")
+//            "ttt");
+//    IndexRequest two = new UnifiedIndexRequest(esClient,"bb_i_sdkinfo_stat").id("456")
 //        .source(XContentType.JSON, "agent_id",
 //            "ccc");
+//    IndexRequest three = new UnifiedIndexRequest(esClient,"bb_i_sdkinfo_stat").id("789")
+//        .source(XContentType.JSON, "agent_id",
+//            "yyy");
 //    esClient.getBulkProcessor().add(one);
 //    esClient.getBulkProcessor().add(two);
 //    esClient.getBulkProcessor().add(three);
-//    esClient.create("test", 1, 0);
+//    esClient.create("test1", 1, 0);
 //    esClient.delete("test");
 //    boolean test = esClient.exists("test");
 //    System.out.println(test);
@@ -712,11 +860,12 @@ public class EsClient {
 //        .getIndexs("bangcle_app_", 1600369600000L, 1605888000000L, "yyyyMMdd");
 //    indexs.stream().forEach(i -> System.out.println(i));
 //    Map<String, Object> jsonMap = new HashMap<>();
-//    jsonMap.put("agent_id", "cba");
-//    esClient.insertData("test","test_type","1",jsonMap);
-//    esClient.updateData("test","test_type","1",jsonMap);
-//    esClient.deleteData("test","test_type","1");
-//    esClient.getData("test","test_type","1");
+//    jsonMap.put("agent_id", "ddd");
+//    esClient.prepareInsert("bb_i_app_20200716","4497-00000000-0000-0000-0000-0000000004497|10000000000000011111000000000000020|1|com.demo.test",jsonMap);
+//    esClient.prepareUpdate("test","1",jsonMap);
+//    esClient.prepareDelete("test","5");
+//    String test = esClient.prepareGet("test", "1").getSourceAsString();
+//    System.out.println(test);
 //    esClient.keepAlive();
 //    SearchRequest searchRequest = new SearchRequest("test");
 //    searchRequest.types("bangcle_type");
@@ -729,11 +878,16 @@ public class EsClient {
 //    SearchResponse searchResponse = esClient.getClient().search(searchRequest,RequestOptions.DEFAULT);
 //    SearchResponse response = esClient
 //        .prepareSearch("bb_i_appinfo_list").execute().actionGet();
-//    esClient.prepareSearch("bb_i_appinfo_list").execute().actionGet();
-    System.out.println("finish!");
-    esClient.closeBulkProcessor();
-    esClient.closeClient();
+//    SearchResponse response = esClient.prepareSearch("bb_i_app_20201021").execute().actionGet();
+//    System.out.println(response);
+//    esClient.prepareGet("test","es_type","1");
+//    long bb_i_appinfo_list = esClient.shardSize("bb_i_appinfo_list");
+//    boolean result = esClient.aliasIndex("test1", "alias1");
+//    System.out.println(result);
+        System.out.println("finish!");
+        esClient.closeBulkProcessor();
+        esClient.closeClient();
 //    esClient.closeBulkProcessor();
-    System.exit(0);
-  }
+//    System.exit(0);
+    }
 }

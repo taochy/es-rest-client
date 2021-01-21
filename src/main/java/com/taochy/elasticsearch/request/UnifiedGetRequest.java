@@ -12,10 +12,14 @@ import org.elasticsearch.client.RestHighLevelClient;
  * @version: 1.0.0.0
  */
 public class UnifiedGetRequest extends GetRequest {
-  private RestHighLevelClient rhlClient;
 
-  public UnifiedGetRequest(EsClient client,String indexName, String docId){
-    super(indexName,docId);
-    this.rhlClient = client.getClient();
-  }
+    private RestHighLevelClient rhlClient;
+
+    public UnifiedGetRequest(EsClient client, String indexName, String docId) {
+        super(indexName);
+        //由于6.X版本仅有一个type并且在7.X及以后版本已经取消了type，所以在读数据时将type属性取消，兼容所有版本
+//    this.type(ESPubPara.ES_TYPE);
+        this.id(docId);
+        this.rhlClient = client.getClient();
+    }
 }
