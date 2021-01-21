@@ -36,6 +36,13 @@ import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+/**
+ * @author ：taochy
+ * @date ：Created in 2020/10/18 2:22 下午
+ * @description：es-client main class
+ * @modified By：
+ * @version: 1.0.0.0
+ */
 @Slf4j
 public class EsClient {
 
@@ -56,21 +63,25 @@ public class EsClient {
 
 
     /**
-     * @Author: zhusw
-     * @Data: 2019/8/22
-     * @Description: test
-     * @param: clusterName
-     * @param: hostNames
-     **/
-    public EsClient(String clusterName, String hostNames) {
+     * constructor 4 hostNames
+     *
+     * @param hostNames
+     */
+    public EsClient(String hostNames) {
         log.info("hostNames = {}", hostNames);
         this.hostNames = hostNames;
         this.port = 9200;
     }
 
 
-    public EsClient(String clusterName, String hostNames, int port) {
-        log.info("hostNames = {}, port={}", clusterName, hostNames,
+    /**
+     * constructor 4 hostNames & port
+     *
+     * @param port
+     * @param hostNames
+     */
+    public EsClient(String hostNames, int port) {
+        log.info("hostNames = {}, port={}", hostNames,
                 port);
         this.hostNames = hostNames;
         this.port = port;
@@ -316,9 +327,6 @@ public class EsClient {
                 String endIndexName = strPrefix + simpleDateFormat.format(endDate);
                 if (openIndices.contains(endIndexName)) {
                     listOut.add(endIndexName);
-                }
-                if (strPrefix.contains("dev")) {
-                    listOut.add(strPrefix);
                 }
             }
         } catch (IOException e) {
@@ -815,7 +823,7 @@ public class EsClient {
     }
 
     public static void main(String[] args) throws Exception {
-        EsClient esClient = new EsClient(null, "vm-100");
+        EsClient esClient = new EsClient("vm-100");
         esClient.buildClient();
         esClient.buildBulkProcessor();
         System.out.println("start!");
