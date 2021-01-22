@@ -8,17 +8,17 @@
 # 使用方法：
 可以通过springboots或者java自带的方式进行es-client的初始化，然后调用方式，该工具最大的好处就是尽量兼容java transport api，减少适配的工作量，比如：
 transport client的search代码：
-SearchResponse searchResponse = esClient.getClient().prepareSearch(indexType)
-        .setTypes(commonBaseService.getIndexTypeName())
-        .setQuery(boolQueryBuilder)
-        .addAggregation(field)
-        .execute().actionGet();
-而当前工具的search代码为：
-SearchResponse searchResponse = esClient.prepareSearch(indexType)
-        .setTypes(commonBaseService.getIndexTypeName())
-        .setQuery(boolQueryBuilder)
-        .addAggregation(field)
-        .execute().actionGet();
+SearchResponse searchResponse = esClient.getClient().prepareSearch(indexType)  
+        .setTypes(commonBaseService.getIndexTypeName())  
+        .setQuery(boolQueryBuilder)  
+        .addAggregation(field)  
+        .execute().actionGet();  
+而当前工具的search代码为：  
+SearchResponse searchResponse = esClient.prepareSearch(indexType)  
+        .setTypes(commonBaseService.getIndexTypeName())  
+        .setQuery(boolQueryBuilder)  
+        .addAggregation(field)  
+        .execute().actionGet();  
 至于其他的request我已经在代码中留下了扩展的接口，大家可以根据自己的需求进行扩展
 另外操作集群相关的api以及未在rest-high-level-api中未实现的方法我已经通过rest-low-level-api进行了实现，并经行了封装
 之所以使用rest-low-level-api封装了部分代码是为了保证这部分可能受版本影响较大且使用频率和方式固定的api在跨版本的时候保持比较好的兼容性和稳定性
